@@ -37,8 +37,8 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=lo
 logger = logging.getLogger(__name__)
 
 RESULTS_DIR = 'results/'
-EPOCH_STATS_LOGFILE = 'epoch_stats.log'
-GPU_USAGE_FILE = RESULTS_DIR + 'gpu_stats.log'
+#EPOCH_STATS_LOGFILE = RESULTS_DIR + 'epoch_stats.log'
+#GPU_USAGE_FILE = RESULTS_DIR + 'gpu_stats.log'
 
 class EpochStatsLogger(Callback):
 
@@ -64,17 +64,21 @@ class EpochStatsLogger(Callback):
                                   logs.get('val_acc')])
 
 
-def get_model():
+def get_model(_multigpu):
     model = Sequential()
     model.add(Embedding(max_features, 128, input_length=maxlen))
     model.add(Bidirectional(CuDNNLSTM(64)))
     model.add(Dropout(0.5))
     model.add(Dense(1, activation='sigmoid'))
 
-    if K.backend() == 'tensorflow' and len(K.tensorflow_backend._get_available_gpus()) > 1:
-        logger.info("Using Multi-GPU Model")
-        model = multi_gpu_model(model, gpus=len(K.tensorflow_backend._get_available_gpus()))
-
+    if _multigpu == True:
+        print ("multi gpu is activated")
+        if  K.backend() == 'tensorflow' and len(K.tensorflow_backend._get_available_gpus()) > 1:
+            logger.info("Using Multi-GPU Model")
+            model = multi_gpu_model(model, gpus=len(K.tensorflow_backend._get_available_gpus()))
+    else:
+        print ("only one GPU activated")
+        
     model.compile('adam', 'binary_crossentropy', metrics=['accuracy'])
     return model
 
@@ -96,12 +100,18 @@ def parse_args():
         '--data_ratio', required=True, type=float,
         help='Proportion of data (of ~1.5 million tweets) to be used for the benchmark.'
     )
+    parser.add_argument(
+        '--multigpu', action='store_true', help='Define if we use mutli-gpu for the benchmark.'
+    )
+    parser.add_argument(
+        '--batchsize', required=False, type=int, default=32, help='Define the batch size (default 32) '
+    )
     return parser.parse_args()
 
 
 def get_gpu_info():
     """Get gpu information.
-    """
+    """,
     gpuinfo = check_output('nvidia-smi -q', shell=True).strip()
     gpuinfo = gpuinfo.replace(':', '\n').split('\n')
     gpuinfo = [x.strip() for x in gpuinfo]
@@ -115,7 +125,7 @@ def get_gpu_info():
 
 
 def get_cpu_info():
-    """Get system processor information.
+    """et system processor information.
     """
     info = check_output('lscpu', shell=True).strip().split('\n')
     cpuinfo = [l.split(":") for l in info]
@@ -142,7 +152,6 @@ def check_gpu():
     except:
         raise RuntimeError('Make sure the Docker is correctly configured for GPU usage.')
 
-
 def monitor_gpu(interval, output_file):
     usages = []
     while True:
@@ -158,11 +167,14 @@ def monitor_gpu(interval, output_file):
 if __name__ == '__main__':
 
     options = parse_args()
+
     # check if GPU is correctly configured
     check_gpu()
 
     REPORT_FILE = '{}{}-report.json'.format(RESULTS_DIR, options.platform)
-
+    EPOCH_STATS_LOGFILE = '{}{}-epoch_stats.log'.format(RESULTS_DIR, options.platform)
+    GPU_USAGE_FILE = '{}{}-gpu_stats.log'.format(RESULTS_DIR, options.platform)
+    
     report_dict = dict()
     # store system information
     report_dict['systeminfo'] = get_cpu_info()
@@ -174,9 +186,10 @@ if __name__ == '__main__':
 
     max_features = len(vocabulary)
     maxlen = x_train.shape[1]
-    batch_size = 32
+    batch_size = options.batchsize
     epochs = options.epochs
 
+    logger.info("batch size is %d" % batch_size) 
     logger.info('%d train sequences' % len(x_train))
     logger.info('%d test sequences' % len(x_test))
 
@@ -185,7 +198,7 @@ if __name__ == '__main__':
     y_train = np.array(y_train)
     y_test = np.array(y_test)
 
-    model = get_model()
+    model = get_model(options.multigpu)
 
     # Process to monitor GPU usage
     p = multiprocessing.Process(target=monitor_gpu, args=(options.interval, GPU_USAGE_FILE))

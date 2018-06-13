@@ -1,0 +1,10 @@
+{
+    "systeminfo": "CPU INFO\nModel name:Intel(R) Celeron(R) CPU G3900 @ 2.80GHz, Architecture:x86_64, CPU(s):2, MemTotal:8125364 kB, ", 
+    "gpu_usage": 72.42857142857143, 
+    "epoch_stats": [
+        "epoch,elapsed,loss,acc,val_loss,val_acc\r\n", 
+        "0,1045.1997699737549,0.4186873388558113,0.8087873848156615,0.3874923743531209,0.8263166563163012\r\n"
+    ], 
+    "gpuinfo": "GPU INFO\nModel Name : GeForce GTX 1070, Total FB Memory : 8116 MiB, Attached GPUs : 3, CUDA Version : CUDA Version 9.0.176", 
+    "time": 1045.9351308345795
+}
